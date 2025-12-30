@@ -65,7 +65,7 @@ I2S pins are configured via the ESP32 **GPIO Matrix** in software.
 
 ## Software Environment
 
-- ESP-IDF v4.x / v5.x
+- ESP-IDF v5.3.2
 - Toolchain: xtensa-esp32 / xtensa-esp32s3
 
 ---
