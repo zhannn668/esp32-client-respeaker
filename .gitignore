@@ -1,0 +1,28 @@
+# Build directory
+build/
+.vscode/
+
+# ESP-IDF
+sdkconfig.old
+*.map
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Dependencies
+dependencies.lock
+
+# Misc
+*.zip
