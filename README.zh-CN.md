@@ -64,10 +64,10 @@ I2S 引脚通过 ESP32 的 **GPIO Matrix** 在软件中配置。
 ---
 
 ## 软件环境
-
+- python
 - ESP-IDF v5.3.2
 - 编译工具链：xtensa-esp32 / xtensa-esp32s3
-
+- ESP-ADF v2.7-175-g3e047321
 ---
 
 ## 编译与运行（示例）
