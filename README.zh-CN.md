@@ -65,7 +65,7 @@ I2S 引脚通过 ESP32 的 **GPIO Matrix** 在软件中配置。
 
 ## 软件环境
 
-- ESP-IDF v4.x / v5.x
+- ESP-IDF v5.3.2
 - 编译工具链：xtensa-esp32 / xtensa-esp32s3
 
 ---
