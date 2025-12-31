@@ -24,7 +24,7 @@
 
 ## 关键修改说明
 
-本测试分支主要作为参考实现，**核心修改文件为**：
+本测试分支主要作为参考实现，**核心修改文件**：
 
 ```
 components\third_party\esp-adf\components\audio_board\esp32_s3_korvo2_v3\board_pins_config.c
@@ -38,6 +38,30 @@ components\third_party\esp-adf\components\audio_board\esp32_s3_korvo2_v3\board_p
 该文件可作为：
 - ESP32 + ReSpeaker 4-Mic Array 的 I2S 参考实现
 - 后续音频项目的基础模板
+
+本测试分支主要作为参考实现，**核心修改文件**：
+
+```
+main\aic3104_ng.c
+```
+
+主要功能包括：
+- 绑定 I2C 引脚（SDA / SCL）
+- 对 AIC3104 进行：
+  - Page 选择与探测（probe）
+  - 寄存器可读写验证
+  - 默认音频路径配置（DAC / HPLOUT / LOP）
+
+该文件可作为：
+- ESP32 + ReSpeaker 4-Mic Array 的 I2S 参考实现
+- 后续音频项目的基础模板
+
+**验证方式（串口日志）：**
+```text
+AIC3104_NG: init done
+AIC3104_NG: probe ok: page reg=0x00
+AIC3104_NG: default setup applied
+```
 
 ---
 
