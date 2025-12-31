@@ -27,7 +27,6 @@
 #include "i2s_stream.h"
 
 
-
 static audio_element_handle_t raw_read, element_algo, raw_write;
 static audio_pipeline_handle_t recorder, player;
 static SemaphoreHandle_t g_audio_capture_sem  = NULL;
@@ -76,7 +75,8 @@ static esp_err_t recorder_pipeline_open(void)
   i2s_cfg.std_cfg.gpio_cfg.ws = 7;     // WS pin
   i2s_cfg.std_cfg.gpio_cfg.dout = 44;  // TX data pin
   i2s_cfg.std_cfg.gpio_cfg.din = 43;   // RX data pin
-  
+
+
   i2s_stream_set_channel_type(&i2s_cfg, I2S_CHANNEL_TYPE_ONLY_LEFT);
   // i2s_cfg.out_rb_size  = 2 * 1024;
   i2s_cfg.stack_in_ext  = true;
@@ -192,12 +192,24 @@ int playback_stream_write(char *data, int len)
 
 void setup_audio(void)
 {
-  board_handle = audio_board_init();
-  audio_hal_ctrl_codec(board_handle->audio_hal, AUDIO_HAL_CODEC_MODE_BOTH, AUDIO_HAL_CTRL_START);
-  audio_hal_set_volume(board_handle->audio_hal, 85);
+    ESP_LOGI("audio", "setup_audio: init codec via audio_board_init()");
+
+    board_handle = audio_board_init();
+    if (!board_handle || !board_handle->audio_hal) {
+        ESP_LOGE("audio", "audio_board_init failed (board/codec config mismatch)");
+        return;
+    }
+
+    ESP_ERROR_CHECK(audio_hal_ctrl_codec(board_handle->audio_hal,
+                                         AUDIO_HAL_CODEC_MODE_BOTH,
+                                         AUDIO_HAL_CTRL_START));
+    ESP_ERROR_CHECK(audio_hal_set_volume(board_handle->audio_hal, 85));
+
+    ESP_LOGI("audio", "codec started, volume=85");
 }
 
-int audio_start_proc(void)
+
+int audio_start_proc(void)  
 {
   int rval = audio_thread_create(g_audio_thread, "audio_send_task", audio_send_thread, NULL, 4 * 1024, PRIO_TASK_FETCH, true, 0);
   if (rval != ESP_OK) {

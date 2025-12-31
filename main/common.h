@@ -3,13 +3,14 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include <stdbool.h>
 
 #include <stdlib.h>
 #include "app_config.h"
 
 #define RTC_APP_ID_LEN   32
 #define RTC_TOKEN_LEN    512
-
+//适配reSpeaker核心板的音频参数
 #define AUDIO_I2S_BITS   32
 #define PRIO_TASK_FETCH (21)
 

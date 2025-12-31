@@ -46,6 +46,14 @@
 #include "common.h"
 #include "rtc_proc.h"
 
+#include "driver/i2c_master.h"
+#include "aic3104_ng.h"
+#include "i2s_fd_test.h"
+
+
+void i2c_ng_init(void);
+void i2c_ng_scan(void);
+
 #ifndef CONFIG_AUDIO_ONLY
 #include "video_proc.h"
 #endif
@@ -197,6 +205,18 @@ int app_main(void)
 
   // init and start wifi
   setup_wifi();
+  aic3104_ng_t aic = {0};
+
+  ESP_ERROR_CHECK(aic3104_ng_init(&aic, I2C_NUM_0, GPIO_NUM_5, GPIO_NUM_6, 100000));
+
+  uint8_t page = 0xFF;
+  ESP_ERROR_CHECK(aic3104_ng_probe(&aic, &page));
+
+  ESP_ERROR_CHECK(aic3104_ng_setup_default(&aic));
+
+
+  i2s_full_duplex_init();
+  i2s_fd_squarewave_test();
 
   // Wait until WiFi is connected
   while (!g_app.b_wifi_connected) {

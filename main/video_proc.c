@@ -14,6 +14,7 @@
 #include "common.h"
 #include "rtc_proc.h"
 
+#define CONFIG_AUDIO_ONLY 1   // 强制关闭 video/camera
 
 #ifndef CONFIG_AUDIO_ONLY
 

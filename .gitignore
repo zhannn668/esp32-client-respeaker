@@ -1,28 +1,23 @@
-# Build directory
+# ESP-IDF build
 build/
-.vscode/
-
-# ESP-IDF
+sdkconfig
 sdkconfig.old
-*.map
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
 
 # IDE
+.vscode/
 .idea/
-*.swp
-*.swo
-*~
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# ESP-IDF / toolchain output
+*.elf
+*.bin
+*.map
 
 # OS
 .DS_Store
 Thumbs.db
-
-# Dependencies
-dependencies.lock
-
-# Misc
-*.zip

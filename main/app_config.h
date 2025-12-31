@@ -36,6 +36,6 @@
 
 /* function config */
 /* audio codec */
-#define CONFIG_USE_G711U_CODEC
+#define CONFIG_USE_G722_CODEC
 /* video process */
 // #define CONFIG_AUDIO_ONLY
