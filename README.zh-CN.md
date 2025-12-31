@@ -2,46 +2,98 @@
 
 *简体中文 | [English](README.en.md)*
 
+---
+
 ## 项目简介
 
-这是一个**小型测试分支**，用于验证 **ESP32 / ESP32-S3** 平台通过 **I2S 接口**与 **TI AIC3104 音频 Codec（ReSpeaker 4-Mic Array）** 协同工作的可行性。
+这是一个**小型测试分支**，用于验证 **ESP32 / ESP32-S3** 平台通过 **I2C + I2S 接口**与 **TI AIC3104 音频 Codec（ReSpeaker 4-Mic Array）** 协同工作的可行性。
 
 - 实际主控：**Seeed Studio XIAO ESP32 / ESP32-S3**
 - 音频 Codec：**TI AIC3104**
 - 麦克风阵列：**ReSpeaker 4-Mic Array**
-- 项目性质：**功能验证 / 参考实现 / 非完整产品**
+- 项目性质：**Bring-up / 功能验证 / 参考实现**
 
-该分支重点关注 **底层音频链路打通（I2C + I2S）+ GPIO测试**，不包含完整业务逻辑。
-
----
-
-## 测试目标
-
-- ✅ 验证 **ESP32 I2C NG 驱动** 与 AIC3104 的稳定通信  
-- ✅ 完成 **AIC3104 Codec 初始化与基础音频路径配置**  
-- ✅ 验证 **I2S 全双工（TX/RX）数据通路** 是否正常  
-- ✅ 确认 Board 配置文件中的 **GPIO 映射真实生效**
+该分支专注于**底层硬件链路打通**，不包含完整业务逻辑。
 
 ---
 
-## 核心文件与功能说明
+## Bring-up 总体流程
 
-### 1️⃣ `main/aic3104_ng.c`
+本工程遵循标准嵌入式音频系统 Bring-up 顺序：
 
-**作用：AIC3104 Codec 的 I2C（NG 驱动）初始化与寄存器配置**
+```
+GPIO → I2C → Codec → I2S → Audio RX/TX
+```
 
-该文件完成了 **音频 Codec 侧“上电 + 可通信 + 可工作”** 的全部基础动作，是音频系统的**起点**。
+每一步均有独立测试代码，确保问题可快速定位。
 
-主要功能包括：
+---
 
-- 使用 **ESP-IDF v5.x 新 I2C NG API**（`i2c_master_bus_*`）
-- 绑定 I2C 引脚（SDA / SCL）
-- 对 AIC3104 进行：
-  - Page 选择与探测（probe）
-  - 寄存器可读写验证
-  - 默认音频路径配置（DAC / HPLOUT / LOP）
+## GPIO 输出测试（基础硬件自检）
 
-**验证方式（串口日志）：**
+### 测试目的
+
+在进行 I2C / I2S 通信前，首先验证：
+
+- GPIO 复用是否正确
+- GPIO Matrix 映射是否生效
+- 引脚未被 Boot / 外设占用
+
+### 测试文件
+
+```
+main/gpio_test.c
+main/gpio_test.h
+```
+
+### 测试引脚（XIAO ESP32-S3）
+
+| 逻辑引脚 | GPIO |
+|--------|------|
+| D0 | GPIO1 |
+| D2 | GPIO3 |
+| D3 | GPIO4 |
+
+### 测试方式
+
+- 三路 GPIO 配置为输出
+- 以“走马灯”方式轮流输出高电平
+- 通过万用表 / LED / 逻辑分析仪观察电平变化
+
+### 预期日志
+
+```text
+GPIO_TEST: GPIO test init done
+GPIO_TEST: D0=1 D2=0 D3=0
+GPIO_TEST: D0=0 D2=1 D3=0
+GPIO_TEST: D0=0 D2=0 D3=1
+```
+
+### 结论
+
+当三路 GPIO 能稳定输出 0V / 3.3V：
+
+> ✅ GPIO 配置与 Board 映射生效  
+> ✅ 可进入 I2C / I2S Bring-up  
+
+---
+
+## AIC3104 I2C 初始化（NG 驱动）
+
+### 测试文件
+
+```
+main/aic3104_ng.c
+```
+
+### 测试目标
+
+- 验证 ESP-IDF v5.x **I2C NG API**
+- 验证 AIC3104 芯片存在
+- 验证寄存器可正常读写
+
+### 关键日志
+
 ```text
 AIC3104_NG: init done
 AIC3104_NG: probe ok: page reg=0x00
@@ -50,50 +102,56 @@ AIC3104_NG: default setup applied
 
 ---
 
-### 2️⃣ `main/i2s_fd_test.c`
+## I2S 全双工测试（TX + RX）
 
-**作用：I2S 全双工（TX + RX）链路功能验证**
+### 测试文件
 
-该文件是一个**纯 I2S 层测试模块**，用于确认 **ESP32 ⇄ AIC3104** 音频数据链路是否真实可用。
+```
+main/i2s_fd_test.c
+```
 
-主要功能包括：
+### 测试目标
 
-- 初始化 **I2S Full-Duplex 模式**
-  - 采样率：16 kHz
-  - 声道：Stereo
-  - 位宽：32-bit
-- 通过 I2S **TX 端**输出方波测试信号
-- 通过 I2S **RX 端**同步采集数据
-- 对采集数据进行非零样本统计与阈值判断
+- 验证 I2S 时钟（BCLK / WS / MCLK）
+- 验证数据线（DIN / DOUT）
+- 验证 Codec ↔ ESP32 音频通路
 
-**验证方式（串口日志）：**
+### 测试方式
+
+- TX 端输出方波信号
+- RX 端同步采样
+- 统计非零样本数量
+
+### 关键日志
+
 ```text
 I2S_FD: I2S FD init done (16k, stereo, 32bit)
 I2S_FD: Valid samples count=64000 (threshold~16000)
 ```
 
+> 非零样本显著大于阈值即表示 RX 正常
+
 ---
 
-## Board 配置与 GPIO 映射
+## Board 配置说明
 
-### 关键 Board 文件
+### 关键文件
 
 ```
 components/third_party/esp-adf/components/audio_board/
 └── esp32_s3_korvo2_v3/board_pins_config.c
 ```
 
-### 已验证生效的 GPIO 映射
+### 已验证 GPIO 映射
 
 | 功能 | GPIO |
 |----|----|
 | I2C SDA | GPIO5 |
 | I2C SCL | GPIO6 |
 | I2S BCLK | GPIO8 |
-| I2S WS / LRCK | GPIO7 |
+| I2S WS | GPIO7 |
 | I2S DOUT | GPIO44 |
 | I2S DIN | GPIO43 |
-| I2S MCLK | Board 内部配置 |
 
 ---
 
@@ -125,12 +183,13 @@ idf.py flash monitor
 
 ## 注意事项
 
-- 本分支为测试用途
-- GPIO 映射需与实际硬件一致
+- 本分支为 Bring-up / 测试用途
+- 不同 XIAO 型号 GPIO 资源不同
 - AIC3104 依赖 MCLK，需确认硬件连接
 
 ---
 
 ## 说明
 
-本仓库分支仅用于实验和学习参考。
+本仓库分支仅用于实验和学习参考，  
+可作为 **ESP32 + AIC3104 / ReSpeaker 音频系统 Bring-up 的最小可行示例**。
