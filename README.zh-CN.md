@@ -27,14 +27,13 @@
 本测试分支主要作为参考实现，**核心修改文件为**：
 
 ```
-main/audio_proc.c
+components\third_party\esp-adf\components\audio_board\esp32_s3_korvo2_v3\board_pins_config.c
 ```
 
 修改内容主要集中在：
 
-- I2S 初始化参数配置
+- I2C GPIO（SCL / SDA）映射
 - I2S GPIO（BCLK / WS / DIN / MCLK）映射
-- 基本 PCM 音频数据采集验证
 
 该文件可作为：
 - ESP32 + ReSpeaker 4-Mic Array 的 I2S 参考实现
