@@ -1,43 +1,173 @@
+
 # ESP32 ReSpeaker Audio Capture (Test Branch)
 
 *简体中文 | [English](README.en.md)*
 
 ---
 
+## 关键修改文件（最重要，一定先看）
+
+> **本项目的所有引脚适配，完全不是在应用层“手写 GPIO/I2C/I2S 初始化”，而是通过修改 ESP‑ADF 官方 Board 配置实现的。**
+
+```
+components/third_party/esp-adf/components/audio_board/
+└── esp32_s3_korvo2_v3/
+    └── board_pins_config.c   ← ★ 本项目最核心、唯一的硬件适配入口
+```
+
+**结论先给出：**
+
+- 本工程 **仍然使用 ESP‑ADF 官方的 `esp32_s3_korvo2_v3` Board**
+- 没有新建 Board
+- 没有魔改 ESP‑ADF 框架
+- 只是 **重写了该 Board 的引脚映射**
+- 所有上层模块（`audio_board / codec / i2s_stream`）**自动使用新引脚**
+
+如果你只想知道：
+
+> 👉「ESP32‑S3 + XIAO + ReSpeaker 4‑Mic 到底怎么接、怎么改？」
+
+**只需要看这一份 `board_pins_config.c`。**
+
+---
+
 ## 项目简介
 
-这是一个**小型测试分支**，用于验证 **ESP32 / ESP32-S3** 平台通过 **I2C + I2S 接口**与 **TI AIC3104 音频 Codec（ReSpeaker 4-Mic Array）** 协同工作的可行性。
+这是一个 **Bring‑up / 测试分支**，目标非常单一：
 
-- 实际主控：**Seeed Studio XIAO ESP32 / ESP32-S3**
-- 音频 Codec：**TI AIC3104**
-- 麦克风阵列：**ReSpeaker 4-Mic Array**
-- 项目性质：**Bring-up / 功能验证 / 参考实现**
+> **验证 ESP32 / ESP32‑S3 能否稳定驱动 TI AIC3104，并通过 I2C + I2S 打通 ReSpeaker 4‑Mic Array 的完整音频链路。**
 
-该分支专注于**底层硬件链路打通**，不包含完整业务逻辑。
+### 硬件组成
+
+- 主控：**Seeed Studio XIAO ESP32 / ESP32‑S3**
+- Codec：**TI AIC3104**
+- 麦克风阵列：**ReSpeaker 4‑Mic Array**
+- 接口：**I2C + I2S**
+
+### 本分支不做什么
+
+- ❌ 不做语音识别
+- ❌ 不做音频算法
+- ❌ 不做网络业务
+
+本分支只做一件事：
+
+> **把底层硬件链路“一次性打通”。**
 
 ---
 
-## Bring-up 总体流程
+## Bring‑up 总体思路（非常重要）
 
-本工程遵循标准嵌入式音频系统 Bring-up 顺序：
+整个工程严格遵循 **硬件 Bring‑up 的黄金顺序**：
 
 ```
-GPIO → I2C → Codec → I2S → Audio RX/TX
+GPIO
+  ↓
+I2C（Codec 控制）
+  ↓
+Codec 寄存器可读写
+  ↓
+I2S 时钟（BCLK / WS / MCLK）
+  ↓
+I2S 数据（RX / TX）
 ```
 
-每一步均有独立测试代码，确保问题可快速定位。
+⚠️ **顺序不能乱**  
+⚠️ **每一步都必须有独立测试**
+
+后面的所有代码和文档，都是围绕这个顺序展开的。
 
 ---
 
-## GPIO 输出测试（基础硬件自检）
+## Board 层引脚重配置（核心原理）
 
-### 测试目的
+### 为什么一定要在 Board 层改？
 
-在进行 I2C / I2S 通信前，首先验证：
+ESP‑ADF 的设计理念是：
 
-- GPIO 复用是否正确
-- GPIO Matrix 映射是否生效
-- 引脚未被 Boot / 外设占用
+> **Board 层负责“这块板子怎么连线”，应用层只关心“我在用音频”。**
+
+如果你在应用层：
+
+- 自己 init I2C
+- 自己 init I2S
+- 自己指定 GPIO
+
+那你基本等于 **绕过了 ESP‑ADF 的整套抽象**，后期会非常痛苦。
+
+**正确做法：**  
+👉 修改 `board_pins_config.c`
+
+---
+
+### I2C 引脚配置（Codec 控制通道）
+
+**文件：**
+
+```
+components/third_party/esp-adf/components/audio_board/
+└── esp32_s3_korvo2_v3/board_pins_config.c
+```
+
+```c
+esp_err_t get_i2c_pins(i2c_port_t port, i2c_config_t *i2c_config)
+{
+    i2c_config->sda_io_num = GPIO_NUM_5;
+    i2c_config->scl_io_num = GPIO_NUM_6;
+    return ESP_OK;
+}
+```
+
+| 信号 | GPIO |
+|----|----|
+| SDA | GPIO5 |
+| SCL | GPIO6 |
+
+📌 **作用说明**
+
+- 所有 Codec（AIC3104）的寄存器访问
+- 所有 `audio_board_init()` 内部 I2C 操作
+- 都会自动走这两个引脚
+
+---
+
+### I2S 引脚配置（音频数据通道）
+
+```c
+esp_err_t get_i2s_pins(int port, board_i2s_pin_t *i2s_config)
+{
+    i2s_config->bck_io_num   = GPIO_NUM_8;
+    i2s_config->ws_io_num    = GPIO_NUM_7;
+    i2s_config->data_out_num = GPIO_NUM_44;
+    i2s_config->data_in_num  = GPIO_NUM_43;
+    i2s_config->mck_io_num   = -1; // 先禁用 MCLK，优先保证稳定
+    return ESP_OK;
+}
+```
+
+| 信号 | GPIO |
+|----|----|
+| BCLK | GPIO8 |
+| WS / LRCK | GPIO7 |
+| DOUT | GPIO44 |
+| DIN | GPIO43 |
+| MCLK | 禁用 |
+
+📌 **重要结论**
+
+> 一旦这里修改完成，ESP‑ADF 内所有 I2S 相关模块都会自动吃到这组引脚。
+
+---
+
+## GPIO 输出测试（最小硬件自检）
+
+### 为什么一定要先测 GPIO？
+
+因为这是：
+
+- 成本最低
+- 信息最直接
+- 能最快排除 **“板子根本没按你想的那样连”** 的问题
 
 ### 测试文件
 
@@ -46,63 +176,97 @@ main/gpio_test.c
 main/gpio_test.h
 ```
 
-### 测试引脚（XIAO ESP32-S3）
+### 测试引脚（XIAO ESP32‑S3）
 
-| 逻辑引脚 | GPIO |
-|--------|------|
+| 逻辑名 | GPIO |
+|----|----|
 | D0 | GPIO1 |
 | D2 | GPIO3 |
 | D3 | GPIO4 |
 
 ### 测试方式
 
-- 三路 GPIO 配置为输出
-- 以“走马灯”方式轮流输出高电平
-- 通过万用表 / LED / 逻辑分析仪观察电平变化
-
-### 预期日志
-
-```text
-GPIO_TEST: GPIO test init done
-GPIO_TEST: D0=1 D2=0 D3=0
-GPIO_TEST: D0=0 D2=1 D3=0
-GPIO_TEST: D0=0 D2=0 D3=1
-```
+- 三个 GPIO 配置为输出
+- 轮流拉高（走马灯）
+- 用万用表 / LED / 示波器观察
 
 ### 结论
 
-当三路 GPIO 能稳定输出 0V / 3.3V：
-
-> ✅ GPIO 配置与 Board 映射生效  
-> ✅ 可进入 I2C / I2S Bring-up  
+> GPIO 正常 ⇒ Board 层映射生效 ⇒ 才有资格继续 I2C / I2S
 
 ---
 
-## AIC3104 I2C 初始化（NG 驱动）
+## app_main Bring‑up 执行流程（强烈建议仔细看）
 
-### 测试文件
+下面这段代码 **不是业务逻辑**，而是：
 
-```
-main/aic3104_ng.c
-```
+> **一条“硬件 Bring‑up 执行脚本”**
 
-### 测试目标
+### app_main 中的真实调用顺序
 
-- 验证 ESP-IDF v5.x **I2C NG API**
-- 验证 AIC3104 芯片存在
-- 验证寄存器可正常读写
+```c
+// 1. NVS 初始化（WiFi / ADF 必需）
+nvs_flash_init();
 
-### 关键日志
+// 2. 启动 WiFi（本项目依赖网络）
+setup_wifi();
 
-```text
-AIC3104_NG: init done
-AIC3104_NG: probe ok: page reg=0x00
-AIC3104_NG: default setup applied
+// 3. GPIO 最小硬件验证
+gpio_test_init();
+gpio_test_blink_all();
+
+// 4. AIC3104 I2C Bring-up
+aic3104_ng_t aic = {0};
+aic3104_ng_init(&aic, I2C_NUM_0, GPIO_NUM_5, GPIO_NUM_6, 100000);
+
+uint8_t page = 0xFF;
+aic3104_ng_probe(&aic, &page);
+aic3104_ng_setup_default(&aic);
 ```
 
 ---
 
-## I2S 全双工测试（TX + RX）
+### 每一步在“硬件层面”到底验证了什么？
+
+#### ① GPIO Test
+
+- GPIO Matrix 是否生效
+- Board 层引脚是否真的被用上
+
+❌ 失败 ⇒ **别看 I2C / I2S，先检查接线**
+
+---
+
+#### ② I2C Init
+
+- I2C 控制器工作
+- SDA / SCL 真正连到 Codec
+
+❌ 失败 ⇒ **引脚 / 上拉 / 电源问题**
+
+---
+
+#### ③ Codec Probe
+
+- AIC3104 是否存在
+- 寄存器是否可读写
+
+❌ 失败 ⇒ **Codec 没供电 / 地址错误 / I2C 时序问题**
+
+---
+
+#### ④ Codec Default Setup
+
+- 时钟树
+- ADC / DAC 通道
+- 数字音频路径
+
+⚠️ **这一步成功 ≠ 有声音**
+👉 只是说明 Codec 进入“可用状态”
+
+---
+
+## I2S 全双工验证
 
 ### 测试文件
 
@@ -110,86 +274,40 @@ AIC3104_NG: default setup applied
 main/i2s_fd_test.c
 ```
 
-### 测试目标
-
-- 验证 I2S 时钟（BCLK / WS / MCLK）
-- 验证数据线（DIN / DOUT）
-- 验证 Codec ↔ ESP32 音频通路
-
 ### 测试方式
 
-- TX 端输出方波信号
-- RX 端同步采样
+- TX：输出方波
+- RX：同步采样
 - 统计非零样本数量
 
-### 关键日志
+### 成功日志
 
 ```text
-I2S_FD: I2S FD init done (16k, stereo, 32bit)
-I2S_FD: Valid samples count=64000 (threshold~16000)
+I2S_FD: Valid samples count=64000 (threshold≈16000)
 ```
 
-> 非零样本显著大于阈值即表示 RX 正常
+📌 **判断标准**
+
+- 非零样本 ≫ 阈值
+- RX 通道数据稳定
 
 ---
 
-## Board 配置说明
+## 最终结论
 
-### 关键文件
-
-```
-components/third_party/esp-adf/components/audio_board/
-└── esp32_s3_korvo2_v3/board_pins_config.c
-```
-
-### 已验证 GPIO 映射
-
-| 功能 | GPIO |
-|----|----|
-| I2C SDA | GPIO5 |
-| I2C SCL | GPIO6 |
-| I2S BCLK | GPIO8 |
-| I2S WS | GPIO7 |
-| I2S DOUT | GPIO44 |
-| I2S DIN | GPIO43 |
+✅ Board 层引脚修改 **100% 生效**  
+✅ I2C → Codec → I2S 链路完整打通  
+✅ AIC3104 + ReSpeaker 可被 ESP32‑S3 稳定驱动  
 
 ---
 
-## 硬件环境
+## 项目定位总结
 
-- MCU：Seeed Studio XIAO ESP32 / ESP32-S3
-- Codec：TI AIC3104
-- 麦克风阵列：ReSpeaker 4-Mic Array
+> **这是一个“可以被照抄的 ESP32 音频 Bring‑up 模板”。**
 
----
+非常适合用于：
 
-## 软件环境
+- 新板子音频硬件调试
+- ESP‑ADF Board 层适配学习
+- AIC3104 / I2S 系统最小验证
 
-- ESP-IDF v5.3.2
-- ESP-ADF v2.7
-- xtensa-esp32 / xtensa-esp32s3 toolchain
-
----
-
-## 编译与运行
-
-```bash
-idf.py set-target esp32s3
-idf.py build
-idf.py flash monitor
-```
-
----
-
-## 注意事项
-
-- 本分支为 Bring-up / 测试用途
-- 不同 XIAO 型号 GPIO 资源不同
-- AIC3104 依赖 MCLK，需确认硬件连接
-
----
-
-## 说明
-
-本仓库分支仅用于实验和学习参考，  
-可作为 **ESP32 + AIC3104 / ReSpeaker 音频系统 Bring-up 的最小可行示例**。
