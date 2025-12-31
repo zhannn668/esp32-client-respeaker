@@ -49,6 +49,7 @@
 #include "driver/i2c_master.h"
 #include "aic3104_ng.h"
 #include "i2s_fd_test.h"
+#include "gpio_test.h"
 
 
 void i2c_ng_init(void);
@@ -195,6 +196,8 @@ static void setup_key_button(void)
 
 int app_main(void)
 {
+
+
   // Initialize NVS
   esp_err_t ret = nvs_flash_init();
   if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
@@ -205,6 +208,10 @@ int app_main(void)
 
   // init and start wifi
   setup_wifi();
+
+  gpio_test_init();
+
+  gpio_test_blink_all();
   aic3104_ng_t aic = {0};
 
   ESP_ERROR_CHECK(aic3104_ng_init(&aic, I2C_NUM_0, GPIO_NUM_5, GPIO_NUM_6, 100000));
@@ -217,6 +224,7 @@ int app_main(void)
 
   i2s_full_duplex_init();
   i2s_fd_squarewave_test();
+
 
   // Wait until WiFi is connected
   while (!g_app.b_wifi_connected) {

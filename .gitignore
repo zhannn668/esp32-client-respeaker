@@ -1,21 +1,17 @@
-# ESP-IDF build
+# ESP-IDF build artifacts
 build/
-sdkconfig
 sdkconfig.old
 
-# IDE
+# VSCode
 .vscode/
-.idea/
 
-# CMake
-CMakeCache.txt
-CMakeFiles/
-cmake_install.cmake
-Makefile
+# Python
+__pycache__/
+*.pyc
 
-# ESP-IDF / toolchain output
-*.elf
+# Binary outputs
 *.bin
+*.elf
 *.map
 
 # OS
